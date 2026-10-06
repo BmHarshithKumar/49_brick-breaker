@@ -34,27 +34,47 @@ class GameEngine:
         self.score = 0
         self.font = pygame.font.SysFont("Arial", 28)
 
+        # Fonts for the end screen
+        self.end_font = pygame.font.SysFont("Arial", 56, bold=True)
+        self.score_font = pygame.font.SysFont("Arial", 32)
+        self.instruction_font = pygame.font.SysFont("Arial", 24)
+
         self.game_over = False
         self.result = None  # "win" or "lose"
+
+        self._game_over_logged = False
 
     def _build_bricks(self, rows, cols):
         bricks = []
         margin, gap, top = 30, 6, 60
 
-        brick_w = (self.width - margin * 2 - gap * (cols - 1)) // cols
+        brick_w = (
+            self.width - margin * 2 - gap * (cols - 1)
+        ) // cols
         brick_h = 22
 
         for r in range(rows):
             for c in range(cols):
                 x = margin + c * (brick_w + gap)
                 y = top + r * (brick_h + gap)
-                bricks.append(Brick(x, y, brick_w, brick_h))
+                bricks.append(
+                    Brick(x, y, brick_w, brick_h)
+                )
 
         return bricks
 
     def handle_event(self, event):
-        # This game only needs continuously-held-key input for the
-        # paddle, handled in handle_input each frame.
+        # While the end screen is displayed, wait for
+        # the player to press a key before exiting.
+        if self.game_over:
+            if event.type == pygame.KEYDOWN:
+                pygame.quit()
+                raise SystemExit
+
+            return
+
+        # Normal gameplay event handling.
+        # Continuous paddle movement is handled in handle_input().
         pass
 
     def handle_input(self):
@@ -64,10 +84,16 @@ class GameEngine:
         keys = pygame.key.get_pressed()
 
         if keys[pygame.K_LEFT] or keys[pygame.K_a]:
-            self.paddle.move(-self.paddle.speed, self.width)
+            self.paddle.move(
+                -self.paddle.speed,
+                self.width,
+            )
 
         if keys[pygame.K_RIGHT] or keys[pygame.K_d]:
-            self.paddle.move(self.paddle.speed, self.width)
+            self.paddle.move(
+                self.paddle.speed,
+                self.width,
+            )
 
     def update(self):
         if self.game_over:
@@ -154,13 +180,19 @@ class GameEngine:
             self.result = "win"
 
     def _reset_ball(self):
-        self.ball.x, self.ball.y = self.width // 2, self.height - 50
+        self.ball.x = self.width // 2
+        self.ball.y = self.height - 50
         self.ball.vx, self.ball.vy = 4, -4
 
     def render(self, screen):
         screen.fill(BG)
 
-        pygame.draw.rect(screen, WHITE, self.paddle.rect())
+        # Normal game objects
+        pygame.draw.rect(
+            screen,
+            WHITE,
+            self.paddle.rect(),
+        )
 
         pygame.draw.circle(
             screen,
@@ -172,35 +204,114 @@ class GameEngine:
         for i, brick in enumerate(self.bricks):
             if brick.alive:
                 row = i // self.cols
-                color = BRICK_COLORS[row % len(BRICK_COLORS)]
-                pygame.draw.rect(screen, color, brick.rect())
+                color = BRICK_COLORS[
+                    row % len(BRICK_COLORS)
+                ]
 
+                pygame.draw.rect(
+                    screen,
+                    color,
+                    brick.rect(),
+                )
+
+        # Score
         score_text = self.font.render(
             f"Score: {self.score}",
             True,
             WHITE,
         )
-        screen.blit(score_text, (10, 10))
 
+        screen.blit(
+            score_text,
+            (10, 10),
+        )
+
+        # Lives
         lives_text = self.font.render(
             f"Lives: {self.lives}",
             True,
             WHITE,
         )
+
         screen.blit(
             lives_text,
             (self.width - 130, 10),
         )
 
-        if self.game_over and not getattr(
-            self,
-            "_game_over_logged",
-            False,
-        ):
-            # NOTE: no proper end screen yet - see Task 2 in the README.
-            if self.result == "win":
-                print("You win! Final score:", self.score)
-            else:
-                print("Game over! Final score:", self.score)
+        # Task 2: End screen
+        if self.game_over:
+            self._render_end_screen(screen)
 
-            self._game_over_logged = True
+    def _render_end_screen(self, screen):
+        # Dark overlay
+        overlay = pygame.Surface(
+            (self.width, self.height),
+            pygame.SRCALPHA,
+        )
+
+        overlay.fill((0, 0, 0, 190))
+        screen.blit(overlay, (0, 0))
+
+        # Result text
+        if self.result == "win":
+            result_text = self.end_font.render(
+                "YOU WIN!",
+                True,
+                WHITE,
+            )
+        else:
+            result_text = self.end_font.render(
+                "GAME OVER",
+                True,
+                WHITE,
+            )
+
+        result_rect = result_text.get_rect(
+            center=(
+                self.width // 2,
+                self.height // 2 - 70,
+            )
+        )
+
+        screen.blit(
+            result_text,
+            result_rect,
+        )
+
+        # Final score
+        final_score_text = self.score_font.render(
+            f"Final Score: {self.score}",
+            True,
+            WHITE,
+        )
+
+        final_score_rect = final_score_text.get_rect(
+            center=(
+                self.width // 2,
+                self.height // 2,
+            )
+        )
+
+        screen.blit(
+            final_score_text,
+            final_score_rect,
+        )
+
+        # Instruction
+        instruction_text = self.instruction_font.render(
+            "Press any key to exit",
+            True,
+            WHITE,
+        )
+
+        instruction_rect = instruction_text.get_rect(
+            center=(
+                self.width // 2,
+                self.height // 2 + 60,
+            )
+        )
+
+        screen.blit(
+            instruction_text,
+            instruction_rect,
+        )
