@@ -22,26 +22,71 @@ class GameEngine:
         self.width = width
         self.height = height
 
-        self.paddle = Paddle(width // 2 - 50, height - 30, 100, 14)
-
-        self.ball = Ball(width // 2, height - 50, radius=8)
-        self.ball.vx, self.ball.vy = 4, -4
-
         self.rows, self.cols = 5, 8
-        self.bricks = self._build_bricks(self.rows, self.cols)
 
-        self.lives = 3
-        self.score = 0
         self.font = pygame.font.SysFont("Arial", 28)
-
-        # Fonts for the end screen
         self.end_font = pygame.font.SysFont("Arial", 56, bold=True)
         self.score_font = pygame.font.SysFont("Arial", 32)
         self.instruction_font = pygame.font.SysFont("Arial", 24)
 
-        self.game_over = False
-        self.result = None  # "win" or "lose"
+        self.difficulty_font = pygame.font.SysFont(
+            "Arial", 30, bold=True
+        )
 
+        self.difficulty = "Medium"
+
+        self.game_over = False
+        self.result = None
+        self.replay_menu = False
+
+        self._game_over_logged = False
+
+        self._start_game()
+
+    def _start_game(self):
+        """Create/reset all gameplay objects for a new game."""
+
+        # Difficulty settings
+        if self.difficulty == "Easy":
+            paddle_width = 120
+            ball_speed = 3
+
+        elif self.difficulty == "Hard":
+            paddle_width = 80
+            ball_speed = 6
+
+        else:
+            # Medium
+            paddle_width = 100
+            ball_speed = 4
+
+        self.paddle = Paddle(
+            self.width // 2 - paddle_width // 2,
+            self.height - 30,
+            paddle_width,
+            14,
+        )
+
+        self.ball = Ball(
+            self.width // 2,
+            self.height - 50,
+            radius=8,
+        )
+
+        self.ball.vx = ball_speed
+        self.ball.vy = -ball_speed
+
+        self.bricks = self._build_bricks(
+            self.rows,
+            self.cols,
+        )
+
+        self.lives = 3
+        self.score = 0
+
+        self.game_over = False
+        self.result = None
+        self.replay_menu = False
         self._game_over_logged = False
 
     def _build_bricks(self, rows, cols):
@@ -49,27 +94,51 @@ class GameEngine:
         margin, gap, top = 30, 6, 60
 
         brick_w = (
-            self.width - margin * 2 - gap * (cols - 1)
+            self.width
+            - margin * 2
+            - gap * (cols - 1)
         ) // cols
+
         brick_h = 22
 
         for r in range(rows):
             for c in range(cols):
                 x = margin + c * (brick_w + gap)
                 y = top + r * (brick_h + gap)
+
                 bricks.append(
-                    Brick(x, y, brick_w, brick_h)
+                    Brick(
+                        x,
+                        y,
+                        brick_w,
+                        brick_h,
+                    )
                 )
 
         return bricks
 
     def handle_event(self, event):
-        # While the end screen is displayed, wait for
-        # the player to press a key before exiting.
+        # Task 3: Handle the replay/difficulty menu
         if self.game_over:
             if event.type == pygame.KEYDOWN:
-                pygame.quit()
-                raise SystemExit
+                if event.key == pygame.K_1:
+                    self.difficulty = "Easy"
+                    self._start_game()
+
+                elif event.key == pygame.K_2:
+                    self.difficulty = "Medium"
+                    self._start_game()
+
+                elif event.key == pygame.K_3:
+                    self.difficulty = "Hard"
+                    self._start_game()
+
+                elif event.key in (
+                    pygame.K_q,
+                    pygame.K_ESCAPE,
+                ):
+                    pygame.quit()
+                    raise SystemExit
 
             return
 
@@ -119,7 +188,9 @@ class GameEngine:
             self.ball.vy *= -1
 
         # Paddle collision
-        if current_rect.colliderect(self.paddle.rect()):
+        if current_rect.colliderect(
+            self.paddle.rect()
+        ):
             paddle_rect = self.paddle.rect()
 
             # Ball came from above the paddle
@@ -140,7 +211,12 @@ class GameEngine:
 
         # Brick collision
         for brick in self.bricks:
-            if brick.alive and current_rect.colliderect(brick.rect()):
+            if (
+                brick.alive
+                and current_rect.colliderect(
+                    brick.rect()
+                )
+            ):
                 brick.alive = False
                 self.score += 1
 
@@ -165,24 +241,41 @@ class GameEngine:
                 break
 
         # Ball fell below the screen
-        if self.ball.y - self.ball.radius > self.height:
+        if (
+            self.ball.y - self.ball.radius
+            > self.height
+        ):
             self.lives -= 1
 
             if self.lives <= 0:
                 self.game_over = True
                 self.result = "lose"
+                self.replay_menu = True
             else:
                 self._reset_ball()
 
         # Win condition
-        if all(not b.alive for b in self.bricks):
+        if all(
+            not b.alive
+            for b in self.bricks
+        ):
             self.game_over = True
             self.result = "win"
+            self.replay_menu = True
 
     def _reset_ball(self):
         self.ball.x = self.width // 2
         self.ball.y = self.height - 50
-        self.ball.vx, self.ball.vy = 4, -4
+
+        if self.difficulty == "Easy":
+            speed = 3
+        elif self.difficulty == "Hard":
+            speed = 6
+        else:
+            speed = 4
+
+        self.ball.vx = speed
+        self.ball.vy = -speed
 
     def render(self, screen):
         screen.fill(BG)
@@ -197,13 +290,17 @@ class GameEngine:
         pygame.draw.circle(
             screen,
             WHITE,
-            (int(self.ball.x), int(self.ball.y)),
+            (
+                int(self.ball.x),
+                int(self.ball.y),
+            ),
             self.ball.radius,
         )
 
         for i, brick in enumerate(self.bricks):
             if brick.alive:
                 row = i // self.cols
+
                 color = BRICK_COLORS[
                     row % len(BRICK_COLORS)
                 ]
@@ -235,24 +332,41 @@ class GameEngine:
 
         screen.blit(
             lives_text,
-            (self.width - 130, 10),
+            (
+                self.width - 130,
+                10,
+            ),
         )
 
-        # Task 2: End screen
+        # Task 2 + Task 3 end screen
         if self.game_over:
             self._render_end_screen(screen)
 
     def _render_end_screen(self, screen):
         # Dark overlay
         overlay = pygame.Surface(
-            (self.width, self.height),
+            (
+                self.width,
+                self.height,
+            ),
             pygame.SRCALPHA,
         )
 
-        overlay.fill((0, 0, 0, 190))
-        screen.blit(overlay, (0, 0))
+        overlay.fill(
+            (
+                0,
+                0,
+                0,
+                190,
+            )
+        )
 
-        # Result text
+        screen.blit(
+            overlay,
+            (0, 0),
+        )
+
+        # Result
         if self.result == "win":
             result_text = self.end_font.render(
                 "YOU WIN!",
@@ -269,7 +383,7 @@ class GameEngine:
         result_rect = result_text.get_rect(
             center=(
                 self.width // 2,
-                self.height // 2 - 70,
+                100,
             )
         )
 
@@ -285,10 +399,12 @@ class GameEngine:
             WHITE,
         )
 
-        final_score_rect = final_score_text.get_rect(
-            center=(
-                self.width // 2,
-                self.height // 2,
+        final_score_rect = (
+            final_score_text.get_rect(
+                center=(
+                    self.width // 2,
+                    160,
+                )
             )
         )
 
@@ -297,21 +413,66 @@ class GameEngine:
             final_score_rect,
         )
 
-        # Instruction
-        instruction_text = self.instruction_font.render(
-            "Press any key to exit",
+        # Replay heading
+        replay_text = self.difficulty_font.render(
+            "PLAY AGAIN?",
             True,
             WHITE,
         )
 
-        instruction_rect = instruction_text.get_rect(
+        replay_rect = replay_text.get_rect(
             center=(
                 self.width // 2,
-                self.height // 2 + 60,
+                230,
             )
         )
 
         screen.blit(
-            instruction_text,
-            instruction_rect,
+            replay_text,
+            replay_rect,
         )
+
+        # Difficulty options
+        easy_text = self.instruction_font.render(
+            "1 - Easy",
+            True,
+            WHITE,
+        )
+
+        medium_text = self.instruction_font.render(
+            "2 - Medium",
+            True,
+            WHITE,
+        )
+
+        hard_text = self.instruction_font.render(
+            "3 - Hard",
+            True,
+            WHITE,
+        )
+
+        quit_text = self.instruction_font.render(
+            "Q - Quit",
+            True,
+            WHITE,
+        )
+
+        options = [
+            (easy_text, 290),
+            (medium_text, 330),
+            (hard_text, 370),
+            (quit_text, 410),
+        ]
+
+        for text, y in options:
+            rect = text.get_rect(
+                center=(
+                    self.width // 2,
+                    y,
+                )
+            )
+
+            screen.blit(
+                text,
+                rect,
+            )
